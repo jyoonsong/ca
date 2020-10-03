@@ -147,40 +147,52 @@ fp12 float_fp12(float f)
 	if (exp < 91) {
 		return sign | 0;
 	}
-
-	unsigned int frac = value.u & 0x007fffff;
-
-	if (exp == 0x00ff) {
+	else if (exp == 0x00ff) {
+		unsigned int frac = value.u & 0x007fffff;
 		if (frac == 0)
 			return sign | 0x07e0;
-		else {
-			return sign | 0x07e1;
-		}
+		return sign | 0x07e1;
 	}
 	else if (exp >= 159) {
 		return sign | 0x07e0;
 	}
+	else if (exp == 91) {
+		unsigned int frac = value.u & 0x007fffff;
+		unsigned int sticky = frac & 0x7FFFFF;
 
+		frac |= 0x00800000;
+
+		frac >>= 6;
+
+		exp = 0;
+
+		unsigned int man = frac;
+
+		if ((man & 0x00020000) != 0) { 
+			if (sticky != 0 || ((man & 0x00040000) != 0 && sticky == 0)) {
+				return sign | 0x0001;
+			}
+		}
+		return sign | 0;
+	}
+
+	unsigned int frac = value.u & 0x007fffff;
 	unsigned int exp_result = exp - 96;
-	unsigned int sticky = 0;
 
 	frac |= 0x00800000;
 	
     if (exp < 97) {
 		exp_result = 0;
-		for (int i = 0; i < 97 - exp; i++) {
-			sticky |= (frac & (1 >> i));
-			frac >>= 1;
-		}
+		frac >>= (97 - exp);
 	}
 	
 	unsigned int man = frac;
 	frac >>= 18;
 
 	if ((man & 0x00020000) != 0) { 
-		sticky |= man & 0x0001FFFF;
+		unsigned int sticky = man & 0x0001FFFF;
 
-	    if (sticky != 0 || ((man & 0x00040000) != 0 && sticky == 0)) { // L18
+	    if (sticky != 0 || ((man & 0x00040000) != 0 && sticky == 0)) {
 	    	frac += 1;
 
 	    	if ((frac & 0x0040) != 0) { 
