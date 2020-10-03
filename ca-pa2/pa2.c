@@ -24,32 +24,32 @@ typedef union {
     float f;
 } u2f;
 
-#define BINARY_PATTERN "%c%c%c%c%c%c%c%c"
-#define BINARY(BYTE)			\
-	(BYTE & 0x80 ? '1' : '0'),	\
-	(BYTE & 0x40 ? '1' : '0'),	\
-	(BYTE & 0x20 ? '1' : '0'),	\
-	(BYTE & 0x10 ? '1' : '0'),	\
-	(BYTE & 0x08 ? '1' : '0'),	\
-	(BYTE & 0x04 ? '1' : '0'),	\
-	(BYTE & 0x02 ? '1' : '0'),	\
-	(BYTE & 0x01 ? '1' : '0')
+// #define BINARY_PATTERN "%c%c%c%c%c%c%c%c"
+// #define BINARY(BYTE)			\
+// 	(BYTE & 0x80 ? '1' : '0'),	\
+// 	(BYTE & 0x40 ? '1' : '0'),	\
+// 	(BYTE & 0x20 ? '1' : '0'),	\
+// 	(BYTE & 0x10 ? '1' : '0'),	\
+// 	(BYTE & 0x08 ? '1' : '0'),	\
+// 	(BYTE & 0x04 ? '1' : '0'),	\
+// 	(BYTE & 0x02 ? '1' : '0'),	\
+// 	(BYTE & 0x01 ? '1' : '0')
 
-#define PRINT_BYTE(BYTE) printf(BINARY_PATTERN, BINARY(BYTE))
-#define PRINT(DATATYPE, TYPENAME, NUM)				\
-	do {							\
-		size_t typesize = sizeof(DATATYPE);		\
-		DATATYPE data = NUM;				\
-		uint8_t *ptr = (uint8_t *)&data;		\
-								\
-		printf("%s(", TYPENAME);			\
-		PRINT_BYTE(*(ptr + typesize - 1));		\
-		for (ssize_t i = typesize - 2; i >= 0; i--) {	\
-			printf(" ");				\
-			PRINT_BYTE(*(ptr + i));			\
-		}						\
-		printf(")");					\
-	} while (0)
+// #define PRINT_BYTE(BYTE) printf(BINARY_PATTERN, BINARY(BYTE))
+// #define PRINT(DATATYPE, TYPENAME, NUM)				\
+// 	do {							\
+// 		size_t typesize = sizeof(DATATYPE);		\
+// 		DATATYPE data = NUM;				\
+// 		uint8_t *ptr = (uint8_t *)&data;		\
+// 								\
+// 		printf("%s(", TYPENAME);			\
+// 		PRINT_BYTE(*(ptr + typesize - 1));		\
+// 		for (ssize_t i = typesize - 2; i >= 0; i--) {	\
+// 			printf(" ");				\
+// 			PRINT_BYTE(*(ptr + i));			\
+// 		}						\
+// 		printf(")");					\
+// 	} while (0)
 
 
 /* Convert 32-bit signed integer to 12-bit floating point */
@@ -167,23 +167,29 @@ int fp12_int(fp12 x)
 
 fp12 float_fp12(float f)
 {
-	if (f == 0.0)
-		return 0;
-
 	u2f value = { .f = f };
 
 	unsigned int sign = ((value.u & 0x80000000) == 0) ? 0 : 0xf800;
 	unsigned int exp = (value.u & 0x7f800000) >> 23;
-	unsigned int exp_result = exp - 96;
 	unsigned int frac = value.u & 0x007fffff;
+
+	// printf("* input: %f\n", f);
+	// printf("* exp: %d\n", exp);
+	// PRINT(uint32_t, "exp", exp);
+	// printf("\n");
+	// PRINT(uint32_t, "man", man);
+	// printf("\n");
+	// PRINT(uint32_t, "frac", frac);
+	// printf("\n");
 
 	if (exp == 0x00ff) { // 11...1
 		// infinity
 		if (frac == 0)
 			return sign | 0x07e0;
 		// nan
-		else
+		else {
 			return sign | 0x07e1;
+		}
 	}
 	else if (exp >= 159) {
 		return sign | 0x07e0; // infinity
@@ -191,63 +197,78 @@ fp12 float_fp12(float f)
 	else if (exp < 91) { // too close to 0
 		return sign | 0; // zero 
 	}
-	else {
-		frac |= 0x00800000; // normalized float
-		PRINT(uint32_t, "fracBefore", frac);
-		printf("\n");
+	// else if (exp == 0) {
+	// 	return sign | 0;
+	// }
 
-	    if (exp < 97) { // denormalized fp12
-			exp_result = 0;
-			frac >>= (97 - exp);
-			PRINT(uint32_t, "fracAfter", frac);
-			printf("\n");
+	unsigned int exp_result = exp - 96;
+	unsigned int sticky = 0;
+
+	frac |= 0x00800000; // normalized float
+	
+	// PRINT(uint32_t, "fracBefore", frac);
+	// printf("\n");
+
+    if (exp < 97) { // denormalized fp12
+    	// int shift = 97 - exp;
+    	// if (shift >= 32)
+    	// 	frac = 0;
+    	// else
+    	// 	frac = frac >> shift;
+		exp_result = 0;
+		for (int i = 0; i < 97 - exp; i++) { // 91 ~ 96 => 6 ~ 1
+			sticky |= (frac & (1 >> i));
+			frac >>= 1;
+			// printf("%d\n", sticky);
 		}
-		
-		// get 5-bit frac 
-		unsigned int man = frac;
-		frac >>= 18;
-
-		printf("* input: %f\n", f);
-		printf("* exp: %d\n", exp);
-		PRINT(uint32_t, "exp", exp);
-		printf("\n");
-		PRINT(uint32_t, "man", man);
-		printf("\n");
-		PRINT(uint16_t, "frac", frac);
-		printf("\n");
-
-		// round-to-even
-		if ((man & 0x00020000) != 0) { // R17 == 1
-	    	unsigned int sticky = man & 0x00010000; // S16
-		    for (int i = 15; i >= 0; i--) {
-		    	sticky |= man & (1 << i);
-		    }
-
-		    printf("sticky: %d \n", sticky);
-
-		    if (sticky != 0 || ((man & 0x00040000) != 0 && sticky == 0)) {
-		    	frac += 1;
-
-		    	PRINT(uint16_t, "fracPlusOne", frac);
-				printf("\n");
-
-		    	if ((frac & 0x0040) != 0) { 
-		    		frac >>= 1;
-	    			exp_result += 1;
-
-	    			PRINT(uint16_t, "fracShifted", frac);
-					printf("\n");
-					
-					if (exp_result >= 63) { // infinity
-						return sign | 0x07e0;
-					}
-		    	}
-		    	else if (exp == 96 && (frac & 0x0020) != 0) {
-		    		exp_result += 1;
-		    	}
-		    }
-	    }
+		// frac = frac >> (97 - exp);
 	}
+	// PRINT(uint32_t, "fracAfter", frac);
+	// printf("\n");
+	
+	// get 5-bit frac 
+	unsigned int man = frac;
+	frac >>= 18;
+
+	// printf("* input: %f\n", f);
+	// printf("* exp: %d\n", exp);
+	// PRINT(uint32_t, "exp", exp);
+	// printf("\n");
+	// PRINT(uint32_t, "man", man);
+	// printf("\n");
+	// PRINT(uint16_t, "frac", frac);
+	// printf("\n");
+
+	// round-to-even
+	if ((man & 0x00020000) != 0) { // R17 == 1
+		// unsigned int sticky = man & 0x0001FFFF;
+		sticky |= man & 0x0001FFFF;
+
+	    if (sticky != 0 || ((man & 0x00040000) != 0 && sticky == 0)) { // L18
+	    	frac += 1;
+
+	  //   	PRINT(uint16_t, "fracPlusOne", frac);
+			// printf("\n");
+
+	    	if ((frac & 0x0040) != 0) { 
+	    		frac >>= 1;
+    			exp_result += 1;
+
+    // 			PRINT(uint16_t, "fracShifted", frac);
+				// printf("\n");
+				
+				if (exp_result >= 63) { // infinity
+					return sign | 0x07e0;
+				}
+	    	}
+	    	else if (exp == 96 && (frac & 0x0020) != 0) {
+	    		exp_result = 1;
+	    	}
+	    }
+    }
+
+    if (exp_result >= 63)
+    	return sign | 0x07e0;
 
 	return sign | (exp_result << 5) | (frac & 0x001f);
 }
@@ -255,14 +276,9 @@ fp12 float_fp12(float f)
 /* Convert 12-bit floating point to 32-bit single-precision floating point */
 float fp12_float(fp12 x)
 {
-	unsigned int value = x & 0x07FF;
-
-	if (value == 0)
-		return 0.0;
-
 	unsigned int sign = (x & 0x0800) << 20;
-	unsigned int exp = (value & 0x07e0) >> 5;
-	unsigned int frac = (value & 0x001f);
+	unsigned int exp = (x & 0x07e0) >> 5;
+	unsigned int frac = (x & 0x001f);
 
 	// PRINT(uint32_t, "sign", sign);
 	// printf("\n");
@@ -274,16 +290,20 @@ float fp12_float(fp12 x)
 	if (exp == 0x003f) {
 		if (frac == 0) { // infinity
 			u2f infinity = { .u = (sign | 0x7f800000) };
+			// printf("infinity: %f\n", infinity.f);
 			return infinity.f;
 		}
 		else { // NaN
 			u2f nan = { .u = (sign | 0x7f800001) };
-			// PRINT(uint32_t, "nan", nan.u);
-			// printf("\n");
+			// printf("nan: %f\n", nan.f);
 			return nan.f;
 		}
 	}
 	else if (exp == 0) { // denormalized fp12
+		if (frac == 0) {
+			u2f zero = { .u = ( sign | 0x0000 )};
+			return zero.f;
+		}
 		int shifted = 0;
 		while ((frac & 0x0020) == 0) {
 			frac <<= 1;
@@ -301,13 +321,17 @@ float fp12_float(fp12 x)
 		exp += 96;
 	}
 
+	
+
+	u2f result = { .u = (sign | ((exp << 23) & 0x7f800000) | ((frac << 18) & 0x007fffff)) };
+
 	// PRINT(uint32_t, "sign", sign);
 	// printf("\n");
 	// PRINT(uint32_t, "frac", frac);
 	// printf("\n");
 	// PRINT(uint16_t, "exp", exp);
 	// printf(" %d\n", exp);
+	// printf("%f\n", result.f);
 
-	u2f result = { .u = (sign | ((exp << 23) & 0x7f800000) | ((frac << 18) & 0x007fffff)) };
 	return result.f;
 }
