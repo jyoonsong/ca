@@ -16,6 +16,7 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <sys/time.h>
 
 #define RED   "\033[0;31m"
 #define GREEN "\033[0;32m"
@@ -51,7 +52,7 @@
 		printf(")");					\
 	} while (0)
 
-#define CHECK(RES, ANS) printf("%s"RESET, (RES) == (ANS) ? GREEN"CORRECT" : RED"WRONG")
+#define CHECK(RES, ANS) printf("%s"RESET, (RES) == (ANS) ? GREEN"" : RED"WRONG")
 #define COMP(RES, ANS, TYPENAME) comp_##TYPENAME(RES, ANS)
 
 static void comp_int(uint32_t result, uint32_t answer)
@@ -195,66 +196,81 @@ uint32_t ans4[13] =	{0x00000000, 0xae000000, 0x45540000, 0x7f800000, 0xff800000,
 
 int main(void)
 {
-	printf("\n%sTest 1: Casting from int to fp12%s\n", CYAN, RESET);
-	for (int i = 0; i < N; i++) {
-		uint16_t result = (uint16_t)int_fp12(test1[i]);
+	// printf("\n%sTest 1: Casting from int to fp12%s\n", CYAN, RESET);
+	// for (int i = 0; i < N; i++) {
+	// 	uint16_t result = (uint16_t)int_fp12(test1[i]);
 
-		PRINT(uint32_t, "int", test1[i]);
-		printf(" => ");
-		PRINT(uint16_t, "fp12", result);
-		printf(", ");
-		PRINT(uint16_t, "ans", ans1[i]);
-		printf(", ");
-		COMP(result, ans1[i], fp12);
-		printf("\n");
-	}
+	// 	PRINT(uint32_t, "int", test1[i]);
+	// 	printf(" => ");
+	// 	PRINT(uint16_t, "fp12", result);
+	// 	printf(", ");
+	// 	PRINT(uint16_t, "ans", ans1[i]);
+	// 	printf(", ");
+	// 	COMP(result, ans1[i], fp12);
+	// 	printf("\n");
+	// }
 
-	printf("\n%sTest 2: Casting from fp12 to int%s\n", CYAN, RESET);
-	for (int i = 0; i < N; i++) {
-		uint32_t result = (uint32_t)fp12_int(test2[i]);
+	// printf("\n%sTest 2: Casting from fp12 to int%s\n", CYAN, RESET);
+	// for (int i = 0; i < N; i++) {
+	// 	uint32_t result = (uint32_t)fp12_int(test2[i]);
 
-		PRINT(uint16_t, "fp12", test2[i]);
-		printf(" => ");
-		PRINT(uint32_t, "int", result);
-		printf(", ");
-		PRINT(uint32_t, "ans", ans2[i]);
-		printf(", ");
-		COMP(result, ans2[i], int);
-		printf("\n");
-	}
+	// 	PRINT(uint16_t, "fp12", test2[i]);
+	// 	printf(" => ");
+	// 	PRINT(uint32_t, "int", result);
+	// 	printf(", ");
+	// 	PRINT(uint32_t, "ans", ans2[i]);
+	// 	printf(", ");
+	// 	COMP(result, ans2[i], int);
+	// 	printf("\n");
+	// }
 
 	printf("\n%sTest 3: Casting from float to fp12%s\n", CYAN, RESET);
-	for (int i = 0; i < 29; i++) {
-		float *p = (float *)&test3[i];
-		float f = *p;
-		uint16_t result = (uint16_t)float_fp12(f);
+	struct timeval t0, t1;
+	float sum = 0;
 
-		PRINT(uint32_t, "float", test3[i]);
-		printf(" => ");
-		PRINT(uint16_t, "fp12", result);
-		printf(", ");
-		PRINT(uint16_t, "ans", ans3[i]);
-		printf(", ");
-		COMP(result, ans3[i], fp12);
-		printf("\n");
+	for (int k = 0; k < 100; k++) {
+		gettimeofday(&t0, NULL);
+
+		for (int j = 0; j < 300; j++) {
+			for (int i = 0; i < 29; i++) {
+				float *p = (float *)&test3[i];
+				float f = *p;
+				uint16_t result = (uint16_t)float_fp12(f);
+
+				// PRINT(uint32_t, "float", test3[i]);
+				// printf(" => ");
+				// PRINT(uint16_t, "fp12", result);
+				// printf(", ");
+				// PRINT(uint16_t, "ans", ans3[i]);
+				// printf(", ");
+				COMP(result, ans3[i], fp12);
+				// printf("\n");
+			}
+		}
+
+		gettimeofday(&t1, NULL);
+		float diff = (t1.tv_sec - t0.tv_sec) * 1000.0f + (t1.tv_usec - t0.tv_usec) / 1000.0f;
+		// printf("took %f ms\n", diff); 
+		sum += diff;
 	}
+	printf("Average: %f ms\n", sum / 100.0);
 
-	printf("\n%sTest 4: Casting from fp12 to float%s\n", CYAN, RESET);
-	for (int i = 0; i < 13; i++) {
-		float f = fp12_float(test4[i]);
-		uint32_t *p = (uint32_t *)&f;
-		uint32_t result = *p;
+	// printf("\n%sTest 4: Casting from fp12 to float%s\n", CYAN, RESET);
+	// for (int i = 0; i < 13; i++) {
+	// 	float f = fp12_float(test4[i]);
+	// 	uint32_t *p = (uint32_t *)&f;
+	// 	uint32_t result = *p;
 
-		PRINT(uint16_t, "fp12", test4[i]);
-		printf(" => ");
-		PRINT(uint32_t, "float", result);
-		printf(", ");
-		PRINT(uint32_t, "ans", ans4[i]);
-		printf(", ");
-		COMP(result, ans4[i], float);
-		printf("\n");
-	}
+	// 	PRINT(uint16_t, "fp12", test4[i]);
+	// 	printf(" => ");
+	// 	PRINT(uint32_t, "float", result);
+	// 	printf(", ");
+	// 	PRINT(uint32_t, "ans", ans4[i]);
+	// 	printf(", ");
+	// 	COMP(result, ans4[i], float);
+	// 	printf("\n");
+	// }
 
-	printf("\n");
+	// printf("\n");
 	return 0;
 }
