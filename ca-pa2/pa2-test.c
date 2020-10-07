@@ -224,36 +224,36 @@ int main(void)
 	// 	printf("\n");
 	// }
 
-	printf("\n%sTest 3: Casting from float to fp12%s\n", CYAN, RESET);
-	struct timeval t0, t1;
-	float sum = 0;
+	// printf("\n%sTest 3: Casting from float to fp12%s\n", CYAN, RESET);
+	// struct timeval t0, t1;
+	// float sum = 0;
 
-	for (int k = 0; k < 100; k++) {
-		gettimeofday(&t0, NULL);
+	// for (int k = 0; k < 100; k++) {
+	// 	gettimeofday(&t0, NULL);
 
-		for (int j = 0; j < 300; j++) {
-			for (int i = 0; i < 29; i++) {
+	// 	for (int j = 0; j < 300; j++) {
+			for (int i = 0; i < 31; i++) {
 				float *p = (float *)&test3[i];
 				float f = *p;
 				uint16_t result = (uint16_t)float_fp12(f);
 
-				// PRINT(uint32_t, "float", test3[i]);
-				// printf(" => ");
-				// PRINT(uint16_t, "fp12", result);
-				// printf(", ");
-				// PRINT(uint16_t, "ans", ans3[i]);
-				// printf(", ");
+				PRINT(uint32_t, "float", test3[i]);
+				printf(" => ");
+				PRINT(uint16_t, "fp12", result);
+				printf(", ");
+				PRINT(uint16_t, "ans", ans3[i]);
+				printf(", ");
 				COMP(result, ans3[i], fp12);
-				// printf("\n");
+				printf("\n");
 			}
-		}
+	// 	}
 
-		gettimeofday(&t1, NULL);
-		float diff = (t1.tv_sec - t0.tv_sec) * 1000.0f + (t1.tv_usec - t0.tv_usec) / 1000.0f;
-		// printf("took %f ms\n", diff); 
-		sum += diff;
-	}
-	printf("Average: %f ms\n", sum / 100.0);
+	// 	gettimeofday(&t1, NULL);
+	// 	float diff = (t1.tv_sec - t0.tv_sec) * 1000.0f + (t1.tv_usec - t0.tv_usec) / 1000.0f;
+	// 	// printf("took %f ms\n", diff); 
+	// 	sum += diff;
+	// }
+	// printf("Average: %f ms\n", sum / 100.0);
 
 	// printf("\n%sTest 4: Casting from fp12 to float%s\n", CYAN, RESET);
 	// for (int i = 0; i < 13; i++) {

@@ -148,8 +148,7 @@ fp12 float_fp12(float f)
 		return sign;
 	}
 	else if (exp == 0x7F800000) {
-		unsigned int frac = value.u & 0x007fffff;
-		if (frac == 0)
+		if ((value.u & 0x007fffff) == 0)
 			return sign | 0x07e0;
 		return sign | 0x07e1;
 	}
@@ -157,49 +156,52 @@ fp12 float_fp12(float f)
 		return sign | 0x07e0;
 	}
 	else if (exp == 0x2d800000) {
-		unsigned int frac = value.u & 0x007fffff;
-
-		if (frac != 0) 
+		if ((value.u & 0x007fffff) != 0) 
 			return sign | 1;
-
 		return sign;
+	}
+	else if (exp <= 0x30000000) {
+		unsigned int frac = value.u & 0x007fffff;
+		frac |= 0x00800000;
+		frac >>= (97 - (exp >> 23));
+		if ((frac & 0x00020000) != 0) { 
+			unsigned int sticky = frac & 0x0001FFFF;
+			if ((sticky != 0 || ((frac & 0x00040000) != 0 && sticky == 0))) {
+				frac = (frac >> 18) + 1;
+	    		if ((frac & 0x0020) != 0) {
+		    		return sign | 0x0020;
+		    	}
+		    	return sign | (frac & 0x001f);
+	    	}
+	    	return sign | (frac & 0x001f);
+		}
+		return sign | (frac >> 18);
 	}
 
 	unsigned int frac = value.u & 0x007fffff;
-	int exp_result = (exp >> 23) - 96;
 
-	frac |= 0x00800000;
-
-    if (exp_result < 1) {
-		frac >>= (97 - exp_result);
-		exp_result = 0;
-	}
-	
 	if ((frac & 0x00020000) != 0) { 
 		unsigned int sticky = frac & 0x0001FFFF;
 		if ((sticky != 0 || ((frac & 0x00040000) != 0 && sticky == 0))) {
-	    	frac >>= 18;
-	    	frac += 1;
+			frac = ((frac >> 18) | 0x0020) + 1;
 
 	    	if ((frac & 0x0040) != 0) { 
+				exp += 0x00800000;
 	    		frac >>= 1;
-				exp_result += 1;
 
-				if (exp_result >= 63) {
+				if (exp >= 0x4F800000) {
 					return sign | 0x07e0;
 				}
-				return sign | (exp_result << 5) | (frac & 0x001f);
-	    	}
-	    	else if (exp == 0x30000000 && (frac & 0x0020) != 0) {
-	    		return sign | 0x0020;
+
+				return sign | ((exp >> 18) - 0x0C00) | (frac & 0x001f);
 	    	}
 
-	    	return sign | (exp_result << 5) | (frac & 0x001f);
+	    	return sign | ((exp >> 18) - 0x0C00) | (frac & 0x001f);
 	    }
+	    return sign | ((exp >> 18) - 0x0C00) | (frac >> 18);
     }
 
-    frac >>= 18;
-	return sign | (exp_result << 5) | (frac & 0x001f);
+	return sign | ((exp >> 18) - 0x0C00) | (frac >> 18);
 }
 
 /* Convert 12-bit floating point to 32-bit single-precision floating point */
