@@ -141,29 +141,34 @@ fp12 float_fp12(float f)
 {
 	u2f value = { .f = f };
 
-	unsigned int sign = ((value.u & 0x80000000) == 0) ? 0 : 0xf800;
-	unsigned int exp = value.u & 0x7f800000;
+	unsigned int sign = 0;
 
-	if (exp < 0x2d800000) {
+	if ((value.u & 0x80000000) != 0) {
+		sign = 0xf800;
+		value.f = -f;
+	}
+
+	if (value.u < 0x2d800000) {
 		return sign;
 	}
-	else if (exp == 0x7F800000) {
+	else if (value.u >= 0x7F800000) {
 		if ((value.u & 0x007fffff) == 0)
 			return sign | 0x07e0;
 		return sign | 0x07e1;
 	}
-	else if (exp >= 0x4F800000) {
+	else if (value.u >= 0x4F800000) {
 		return sign | 0x07e0;
 	}
-	else if (exp == 0x2d800000) {
+	else if (value.u < 0x2E000000) {
 		if ((value.u & 0x007fffff) != 0) 
 			return sign | 1;
 		return sign;
 	}
-	else if (exp <= 0x30000000) {
+	else if (value.u < 0x30800000) {
 		unsigned int frac = value.u & 0x007fffff;
+
 		frac |= 0x00800000;
-		frac >>= (97 - (exp >> 23));
+		frac >>= (97 - (value.u >> 23));
 		if ((frac & 0x00020000) != 0) { 
 			unsigned int sticky = frac & 0x0001FFFF;
 			if ((sticky != 0 || ((frac & 0x00040000) != 0 && sticky == 0))) {
@@ -183,6 +188,7 @@ fp12 float_fp12(float f)
 	if ((frac & 0x00020000) != 0) { 
 		unsigned int sticky = frac & 0x0001FFFF;
 		if ((sticky != 0 || ((frac & 0x00040000) != 0 && sticky == 0))) {
+			unsigned int exp = value.u & 0x7f800000;
 			frac = ((frac >> 18) | 0x0020) + 1;
 
 	    	if ((frac & 0x0040) != 0) { 
@@ -198,10 +204,10 @@ fp12 float_fp12(float f)
 
 	    	return sign | ((exp >> 18) - 0x0C00) | (frac & 0x001f);
 	    }
-	    return sign | ((exp >> 18) - 0x0C00) | (frac >> 18);
+	    return sign | ((value.u >> 18) - 0x0C00) | (frac >> 18);
     }
 
-	return sign | ((exp >> 18) - 0x0C00) | (frac >> 18);
+	return sign | ((value.u >> 18) - 0x0C00) | (frac >> 18);
 }
 
 /* Convert 12-bit floating point to 32-bit single-precision floating point */
