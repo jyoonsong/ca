@@ -141,73 +141,75 @@ fp12 float_fp12(float f)
 {
 	u2f value = { .f = f };
 
-	unsigned int sign = 0;
+	if ((value.u & 0x80000000) == 0) {
+		if (value.u <= 0x2d800000) {
+			return 0;
+		}
+		else if (value.u >= 0x4F7C0000) {
+			if (value.u > 0x7F800000)
+				return 0x07e1;
+			return 0x07e0;
+		}
+		else if (value.u >= 0x30800000) {
+			if ((value.u & 0x00020000) != 0 && !((value.u & 0x0001FFFF) == 0 && (value.u & 0x00040000) == 0)) { 
+				unsigned int frac = value.u & 0x007fffff;
+				frac = ((frac >> 18) | 0x0020) + 1;
+		    	if (frac >= 0x0040) { 
+					return (((value.u >> 18) - 0x0BE0) & 0x7E0) | ((frac >> 1) & 0x001f);
+		    	}
+		    	return (((value.u >> 18) - 0x0C00) & 0x7E0) | (frac & 0x001f);
+		    }
+			return ((value.u >> 18) - 0x0C00) | ((value.u >> 18) & 0x001f);
+		}
+		else if (value.u < 0x2E000000) {
+			return 1;
+		}
+		else if (value.u >= 0x307C0000) {
+			return 0x0020;
+		}
 
-	if ((value.u & 0x80000000) != 0) {
-		sign = 0xf800;
-		value.f = -f;
+		unsigned int frac = (value.u & 0x007fffff) | 0x00800000;
+		frac >>= (97 - (value.u >> 23));
+		if ((frac & 0x00020000) != 0 && !((frac & 0x0001FFFF) == 0 && (frac & 0x00040000) == 0)) { 
+	    	return (((frac >> 18) + 1) & 0x001f);
+		}
+		return (frac >> 18);
 	}
 
-	if (value.u < 0x2d800000) {
-		return sign;
+	value.f = -f;
+
+	if (value.u <= 0x2d800000) {
+		return 0xf800;
 	}
-	else if (value.u >= 0x7F800000) {
-		if ((value.u & 0x007fffff) == 0)
-			return sign | 0x07e0;
-		return sign | 0x07e1;
+	else if (value.u >= 0x4F7C0000) {
+		if (value.u > 0x7F800000)
+			return 0xf800 | 0x07e1;
+		return 0xf800 | 0x07e0;
 	}
-	else if (value.u >= 0x4F800000) {
-		return sign | 0x07e0;
+	else if (value.u >= 0x30800000) {
+		if ((value.u & 0x00020000) != 0 && !((value.u & 0x0001FFFF) == 0 && (value.u & 0x00040000) == 0)) { 
+			unsigned int frac = value.u & 0x007fffff;
+			frac = ((frac >> 18) | 0x0020) + 1;
+	    	if (frac >= 0x0040) { 
+				return 0xf800 | (((value.u >> 18) - 0x0BE0) & 0x7E0) | ((frac >> 1) & 0x001f);
+	    	}
+	    	return 0xf800 | (((value.u >> 18) - 0x0C00) & 0x7E0) | (frac & 0x001f);
+	    }
+		return 0xf800 | ((value.u >> 18) - 0x0C00) | ((value.u >> 18) & 0x001f);
 	}
 	else if (value.u < 0x2E000000) {
-		if ((value.u & 0x007fffff) != 0) 
-			return sign | 1;
-		return sign;
+		return 0xf800 | 1;
 	}
-	else if (value.u < 0x30800000) {
-		unsigned int frac = value.u & 0x007fffff;
-
-		frac |= 0x00800000;
-		frac >>= (97 - (value.u >> 23));
-		if ((frac & 0x00020000) != 0) { 
-			unsigned int sticky = frac & 0x0001FFFF;
-			if ((sticky != 0 || ((frac & 0x00040000) != 0 && sticky == 0))) {
-				frac = (frac >> 18) + 1;
-	    		if ((frac & 0x0020) != 0) {
-		    		return sign | 0x0020;
-		    	}
-		    	return sign | (frac & 0x001f);
-	    	}
-	    	return sign | (frac & 0x001f);
-		}
-		return sign | (frac >> 18);
+	else if (value.u >= 0x307C0000) {
+		return 0xf800 | 0x0020;
 	}
 
-	unsigned int frac = value.u & 0x007fffff;
-
-	if ((frac & 0x00020000) != 0) { 
-		unsigned int sticky = frac & 0x0001FFFF;
-		if ((sticky != 0 || ((frac & 0x00040000) != 0 && sticky == 0))) {
-			unsigned int exp = value.u & 0x7f800000;
-			frac = ((frac >> 18) | 0x0020) + 1;
-
-	    	if ((frac & 0x0040) != 0) { 
-				exp += 0x00800000;
-	    		frac >>= 1;
-
-				if (exp >= 0x4F800000) {
-					return sign | 0x07e0;
-				}
-
-				return sign | ((exp >> 18) - 0x0C00) | (frac & 0x001f);
-	    	}
-
-	    	return sign | ((exp >> 18) - 0x0C00) | (frac & 0x001f);
-	    }
-	    return sign | ((value.u >> 18) - 0x0C00) | (frac >> 18);
-    }
-
-	return sign | ((value.u >> 18) - 0x0C00) | (frac >> 18);
+	unsigned int frac = (value.u & 0x007fffff) | 0x00800000;
+	frac >>= (97 - (value.u >> 23));
+	if ((frac & 0x00020000) != 0 && !((frac & 0x0001FFFF) == 0 && (frac & 0x00040000) == 0)) { 
+    	return 0xf800 | (((frac >> 18) + 1) & 0x001f);
+	}
+	return 0xf800 | (frac >> 18);
 }
 
 /* Convert 12-bit floating point to 32-bit single-precision floating point */
