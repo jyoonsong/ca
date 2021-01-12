@@ -30,26 +30,26 @@ fp12 int_fp12(int n)
 	if (n == 0)
 		return 0;
 
-	// Get sign bit and the absolute value
+	// Get sign bit and the absolute val
 	unsigned int sign = 0;
-	unsigned int value = (unsigned int) n;
+	unsigned int val = (unsigned int) n;
 
 	// printf("%d\n", n);
 
 	if (n < 0) {
 		sign = 0xf800;
-		value = (unsigned int) -n;
+		val = (unsigned int) -n;
 	}
 
-	// PRINT(uint32_t, "val", value);
+	// PRINT(uint32_t, "val", val);
 	// printf("\n");
 	// PRINT(uint16_t, "sign", sign);
 	// printf("\n");
 
 	// Get exponent
     unsigned int exp = 62; // 62 - (32 - digits) = 30 + digits
-	while ((value & (1 << 31)) == 0) {
-        value <<= 1;
+	while ((val & (1 << 31)) == 0) {
+        val <<= 1;
         if (exp == 0)
 			return sign | 0x07E0;
         exp--;
@@ -60,26 +60,26 @@ fp12 int_fp12(int n)
 	// printf(" %d\n", exp);
 
     // Get fraction with round-to-even
-    unsigned int frac = value >> 26;
+    unsigned int frac = val >> 26;
 
-    // PRINT(uint32_t, "val", value);
+    // PRINT(uint32_t, "val", val);
     // printf("\n");
 
     // PRINT(uint16_t, "frac", frac);
     // printf("\n");
 
-    if ((value & (1 << 25)) != 0) {
-    	unsigned int sticky = value & (1 << 24);
+    if ((val & (1 << 25)) != 0) {
+    	unsigned int sticky = val & (1 << 24);
 	    for (int i = 8; i < exp - 30; i++) {
-	    	sticky |= value & (1 << (31 - i));
+	    	sticky |= val & (1 << (31 - i));
 	    }
 
-	    if (sticky != 0 || ((value & (1 << 26)) != 0 && sticky == 0)) {
+	    if (sticky != 0 || ((val & (1 << 26)) != 0 && sticky == 0)) {
 	    	frac += 1;
-	    	// PRINT(uint32_t, "val", value + 1);
+	    	// PRINT(uint32_t, "val", val + 1);
     		// printf("\n");
 
-	    	if ((frac & 0x0040) != 0) { // ((value + 1) & (1 << (exp - 30))) != 0
+	    	if ((frac & 0x0040) != 0) { // ((val + 1) & (1 << (exp - 30))) != 0
 	    		frac >>= 1;
     			exp += 1;
     			if (exp > 62)
@@ -97,16 +97,16 @@ fp12 int_fp12(int n)
 /* Convert 12-bit floating point to 32-bit signed integer */
 int fp12_int(fp12 x)
 {
-	unsigned int value = x & 0x07FF;
+	unsigned int val = x & 0x07FF;
 
-	if (value == 0)
+	if (val == 0)
 		return 0;
 
-	if (value >> 5 == 0x003f)
+	if (val >> 5 == 0x003f)
 		return 0x80000000;
 
-	int man = (value & 0x001f) + 0x0020;
-	int exp = (value & 0x07e0) >> 5;
+	int man = (val & 0x001f) + 0x0020;
+	int exp = (val & 0x07e0) >> 5;
 
 	// PRINT(uint32_t, "man", man);
  //    printf(" %d\n", man);
@@ -139,77 +139,40 @@ int fp12_int(fp12 x)
 
 fp12 float_fp12(float f)
 {
-	u2f value = { .f = f };
+	u2f val = { .f = f };
 
-	if ((value.u & 0x80000000) == 0) {
-		if (value.u <= 0x2d800000) {
-			return 0;
-		}
-		else if (value.u >= 0x4F7C0000) {
-			if (value.u > 0x7F800000)
+	if ((val.u & 0x80000000) == 0) {
+		if (val.u >= 0x4F7C0000) {
+			if (val.u > 0x7F800000) // 2
 				return 0x07e1;
-			return 0x07e0;
+			return 0x07e0; // 8
 		}
-		else if (value.u >= 0x30800000) {
-			if ((value.u & 0x00020000) != 0 && !((value.u & 0x0001FFFF) == 0 && (value.u & 0x00040000) == 0)) { 
-				unsigned int frac = value.u & 0x007fffff;
-				frac = ((frac >> 18) | 0x0020) + 1;
-		    	if (frac >= 0x0040) { 
-					return (((value.u >> 18) - 0x0BE0) & 0x7E0) | ((frac >> 1) & 0x001f);
-		    	}
-		    	return (((value.u >> 18) - 0x0C00) & 0x7E0) | (frac & 0x001f);
-		    }
-			return ((value.u >> 18) - 0x0C00) | ((value.u >> 18) & 0x001f);
+		else if (val.u <= 0x2d800000) {
+			return 0; // 8
 		}
-		else if (value.u < 0x2E000000) {
-			return 1;
+		else if (val.u >= 0x30800000) {
+			return (val.u >> 18) - 0x0C00;
 		}
-		else if (value.u >= 0x307C0000) {
-			return 0x0020;
+		else if (val.u < 0x2E400000) {
+			return 1; // 2
 		}
-
-		unsigned int frac = (value.u & 0x007fffff) | 0x00800000;
-		frac >>= (97 - (value.u >> 23));
-		if ((frac & 0x00020000) != 0 && !((frac & 0x0001FFFF) == 0 && (frac & 0x00040000) == 0)) { 
-	    	return (((frac >> 18) + 1) & 0x001f);
-		}
-		return (frac >> 18);
+		return 0x0002; // 2
 	}
-
-	value.f = -f;
-
-	if (value.u <= 0x2d800000) {
+	else if (val.u >= 0xCF7C0000) {
+		if (val.u > 0xFF800000)
+			return 0xffe1; // 2
+		return 0xffe0; // 4
+	}
+	else if (val.u >= 0xB0800000) {
+    	if ((val.u & 0x7C0000) == 0x7C0000) { 
+			return 0xf800 | (((val.u >> 18) - 0x0BE0) & 0x7E0);
+    	}
+		return 0xf800 | ((val.u >> 18) - 0x0BFF);
+	}
+	else if (val.u <= 0xAd800000) { // 4
 		return 0xf800;
 	}
-	else if (value.u >= 0x4F7C0000) {
-		if (value.u > 0x7F800000)
-			return 0xf800 | 0x07e1;
-		return 0xf800 | 0x07e0;
-	}
-	else if (value.u >= 0x30800000) {
-		if ((value.u & 0x00020000) != 0 && !((value.u & 0x0001FFFF) == 0 && (value.u & 0x00040000) == 0)) { 
-			unsigned int frac = value.u & 0x007fffff;
-			frac = ((frac >> 18) | 0x0020) + 1;
-	    	if (frac >= 0x0040) { 
-				return 0xf800 | (((value.u >> 18) - 0x0BE0) & 0x7E0) | ((frac >> 1) & 0x001f);
-	    	}
-	    	return 0xf800 | (((value.u >> 18) - 0x0C00) & 0x7E0) | (frac & 0x001f);
-	    }
-		return 0xf800 | ((value.u >> 18) - 0x0C00) | ((value.u >> 18) & 0x001f);
-	}
-	else if (value.u < 0x2E000000) {
-		return 0xf800 | 1;
-	}
-	else if (value.u >= 0x307C0000) {
-		return 0xf800 | 0x0020;
-	}
-
-	unsigned int frac = (value.u & 0x007fffff) | 0x00800000;
-	frac >>= (97 - (value.u >> 23));
-	if ((frac & 0x00020000) != 0 && !((frac & 0x0001FFFF) == 0 && (frac & 0x00040000) == 0)) { 
-    	return 0xf800 | (((frac >> 18) + 1) & 0x001f);
-	}
-	return 0xf800 | (frac >> 18);
+	return 0xf800 | (((val.u & 0x7FFFFF) | 0x00800000) >> (371 - (val.u >> 23)));
 }
 
 /* Convert 12-bit floating point to 32-bit single-precision floating point */
